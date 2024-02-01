@@ -16,6 +16,42 @@ dim(heartdata)
 ```
 
 ```{r}
+heartdata$hd <- factor(heartdata$hd, levels=c("absence","presence"))
+head(heartdata)
+task <- as_task_classif(heartdata, target='hd', positive = "presence", id = "heart disease")
+parts <-partition(task,ratio = 3/4)
+dat.train <- heartdata[parts$train,]
+dat.holdout <- heartdata[parts$test,]
 
+# define the classification task
+tasktrain <- as_task_classif(dat.train, target='hd', positive = "presence", id = "heart disease")
+# stratify on class variable
+tasktrain$set_col_roles("hd",c("target","stratum"))
+# define the learning algorithm to use. We set scale to TRUE so that each feature is scaled (using the mean/SD of the training set to scale both the training and test set)
+knn <- lrn("classif.kknn", predict_type="prob",scale=TRUE)
+# 10 fold cross validation
+cvscheme <- rsmp("cv", folds=10)
+# instantiate the cv scheme – this means we can use the same CV fold split to evaluate both KNN and logistic regression 
+cvscheme$instantiate(tasktrain)
+# Run KNN 10 fold cross validation evaluation
+knncv = resample(tasktrain, knn, cvscheme, store_models=T)
+# calculate average AUC across the 10 folds
+meanAUCKnn = knncv$aggregate(msr("classif.auc"))
+meanAUCKnn
+library(precrec)
+autoplot(knncv, type="roc")
 
+## Now try for logreg, repeat steps with different learner
+logreg <- lrn("classif.log_reg", predict_type="prob")
+lrcvscheme$instantiate(tasktrain)
+lregcv = resample(tasktrain, logreg, cvscheme, store_models=T)
+meanAUCKnn = lregcv$aggregate(msr("classif.auc"))
+meanAUCKnn
+autoplot(lregcv, type="roc")
 
+## Check fold split the same
+foldsKNN = knncv$resampling$instance
+foldsLogistic = lregcv$resampling$instance
+all.equal(foldsKNN, foldsLogistic)
+## True!
+```
