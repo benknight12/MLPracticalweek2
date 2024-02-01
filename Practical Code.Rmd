@@ -25,6 +25,7 @@ dat.holdout <- heartdata[parts$test,]
 
 # define the classification task
 tasktrain <- as_task_classif(dat.train, target='hd', positive = "presence", id = "heart disease")
+tasktest <- as_task_classif(dat.holdout, target='hd', positive = "presence", id = "heart disease")
 # stratify on class variable
 task$set_col_roles("hd",c("target","stratum"))
 # define the learning algorithm to use. We set scale to TRUE so that each feature is scaled (using the mean/SD of the training set to scale both the training and test set)
@@ -65,6 +66,7 @@ comp.design = benchmark_grid(
 comp = benchmark(comp.design)
 autoplot(comp, type = "roc")
 
+
 ## Compare the AUC statistically
 aucFoldsKnn = knncv$score(msr("classif.auc"))
 aucFoldsLreg = lregcv$score(msr("classif.auc"))
@@ -79,5 +81,31 @@ t.test(resultsCompare$auc.knn, y=resultsCompare$auc.lreg, paired=T)
 ```
 
 ```{r}
-## Now learn from train set and test on test set
+## Now learn from train set and test on test set for the chosen knn model
+task = as_task_classif(heartdata, target="hd", positive="presence", id="heart disease")
+knn = lrn("classif.kknn", predict_type="prob")
+knn$train(task, parts$train)
+responsesHoldout = knn$predict(task, parts$test)
+responsesHoldout
+
+library(pROC)
+holdoutPreds = responsesHoldout$prob
+rocHoldout <- roc(response=responsesHoldout$truth, predictor=holdoutPreds[,"presence"], levels=c("absence","presence"))
+rocHoldout
+
+responsesHoldout$score(msrs("classif.auc"))
+## Bootstrap to find confidence intervals
+boots = ci.auc(rocHoldout, conf.level=0.95, method="bootstrap", boot.n=10000)
+
+## Plot ROC with thresholds
+ix = min(which(rocHoldout$thresholds>0.5))
+##Index of largest classify with score >0.5
+ix
+threshSens = rocHoldout$sensitivities[ix]
+threshSpec = rocHoldout$specificities[ix]
+
+
+# plot roc curve and point on it representing classification threshold
+g = autoplot(responsesHoldout, type="roc") 
+g + geom_point(aes(x=1-threshSpec, y=threshSens), color = "blue")
 ```
