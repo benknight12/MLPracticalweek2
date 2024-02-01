@@ -1,0 +1,21 @@
+---
+title: "week 2 ML Practical"
+output: html_document
+date: "2024-02-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+heartdata<- read.csv("heart-adapted.csv")
+library(mlr3verse)
+head(heartdata)
+dim(heartdata)
+```
+
+```{r}
+
+
+
