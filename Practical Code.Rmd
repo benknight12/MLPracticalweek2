@@ -26,15 +26,15 @@ dat.holdout <- heartdata[parts$test,]
 # define the classification task
 tasktrain <- as_task_classif(dat.train, target='hd', positive = "presence", id = "heart disease")
 # stratify on class variable
-tasktrain$set_col_roles("hd",c("target","stratum"))
+task$set_col_roles("hd",c("target","stratum"))
 # define the learning algorithm to use. We set scale to TRUE so that each feature is scaled (using the mean/SD of the training set to scale both the training and test set)
 knn <- lrn("classif.kknn", predict_type="prob",scale=TRUE)
 # 10 fold cross validation
 cvscheme <- rsmp("cv", folds=10)
 # instantiate the cv scheme – this means we can use the same CV fold split to evaluate both KNN and logistic regression 
-cvscheme$instantiate(tasktrain)
+cvscheme$instantiate(task)
 # Run KNN 10 fold cross validation evaluation
-knncv = resample(tasktrain, knn, cvscheme, store_models=T)
+knncv = resample(task, knn, cvscheme, store_models=T)
 # calculate average AUC across the 10 folds
 meanAUCKnn = knncv$aggregate(msr("classif.auc"))
 meanAUCKnn
@@ -42,9 +42,8 @@ library(precrec)
 autoplot(knncv, type="roc")
 
 ## Now try for logreg, repeat steps with different learner
-logreg <- lrn("classif.log_reg", predict_type="prob")
-lrcvscheme$instantiate(tasktrain)
-lregcv = resample(tasktrain, logreg, cvscheme, store_models=T)
+lreg <- lrn("classif.log_reg", predict_type="prob")
+lregcv = resample(task, lreg, cvscheme, store_models=T)
 meanAUCKnn = lregcv$aggregate(msr("classif.auc"))
 meanAUCKnn
 autoplot(lregcv, type="roc")
@@ -54,4 +53,31 @@ foldsKNN = knncv$resampling$instance
 foldsLogistic = lregcv$resampling$instance
 all.equal(foldsKNN, foldsLogistic)
 ## True!
+```
+
+```{r}
+## Plot roc's together
+comp.design = benchmark_grid(
+  tasks = task,
+  learners = c(knn, lreg),
+  resamplings = cvscheme
+)
+comp = benchmark(comp.design)
+autoplot(comp, type = "roc")
+
+## Compare the AUC statistically
+aucFoldsKnn = knncv$score(msr("classif.auc"))
+aucFoldsLreg = lregcv$score(msr("classif.auc"))
+
+resultsCompare = cbind(aucFoldsKnn[,.(iteration, classif.auc)], aucFoldsLreg[,.(classif.auc)])
+colnames(resultsCompare) = c('iteration', 'auc.knn', 'auc.lreg')
+resultsCompare
+## Express in boxplot form and do a t test
+autoplot(knncv, measure = msr("classif.auc"), type = "boxplot")
+autoplot(lregcv, measure = msr("classif.auc"), type = "boxplot")
+t.test(resultsCompare$auc.knn, y=resultsCompare$auc.lreg, paired=T)
+```
+
+```{r}
+## Now learn from train set and test on test set
 ```
